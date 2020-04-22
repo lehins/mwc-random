@@ -1,7 +1,9 @@
-resolver: lts-9.21
+resolver: lts-15.2
 packages:
   - '.'
-  - './mwc-random-bench'
 
 extra-deps:
-  - 'statistics-0.14.0.2'
+  - '../random'
+flags:
+  splitmix:
+    random: false

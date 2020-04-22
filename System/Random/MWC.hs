@@ -1,6 +1,15 @@
-{-# LANGUAGE BangPatterns, CPP, DeriveDataTypeable, FlexibleContexts,
-    MagicHash, Rank2Types, ScopedTypeVariables, TypeFamilies, UnboxedTuples
-    #-}
+{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MagicHash #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UnboxedTuples #-}
+{-# LANGUAGE UndecidableInstances #-}
 -- |
 -- Module    : System.Random.MWC
 -- Copyright : (c) 2009-2012 Bryan O'Sullivan
@@ -89,6 +98,7 @@ module System.Random.MWC
     , toSeed
     , save
     , restore
+    , Random.Frozen(..)
 
     -- * References
     -- $references
@@ -98,27 +108,28 @@ module System.Random.MWC
 #include "MachDeps.h"
 #endif
 
-import Control.Monad           (ap, liftM, unless)
-import Control.Monad.Primitive (PrimMonad, PrimBase, PrimState, unsafePrimToIO)
-import Control.Monad.ST        (ST)
-import Data.Bits               ((.&.), (.|.), shiftL, shiftR, xor)
-import Data.Int                (Int8, Int16, Int32, Int64)
-import Data.IORef              (atomicModifyIORef, newIORef)
-import Data.Typeable           (Typeable)
-import Data.Vector.Generic     (Vector)
-import Data.Word
-import qualified Data.Vector.Generic         as G
-import qualified Data.Vector.Unboxed         as I
-import qualified Data.Vector.Unboxed.Mutable as M
-import System.IO        (hPutStrLn, stderr)
-import System.IO.Unsafe (unsafePerformIO)
 import qualified Control.Exception as E
+import Control.Monad (ap, liftM, unless)
+import Control.Monad.Primitive (PrimBase, PrimMonad, PrimState, unsafePrimToIO, unsafeSTToPrim)
+import Control.Monad.ST (ST)
+import Data.Bits (shiftL, shiftR, xor, (.&.), (.|.))
+import Data.Int (Int16, Int32, Int64, Int8)
+import Data.IORef (atomicModifyIORef, newIORef)
+import Data.Typeable (Typeable)
+import Data.Vector.Generic (Vector)
+import qualified Data.Vector.Generic as G
+import qualified Data.Vector.Unboxed as I
+import qualified Data.Vector.Unboxed.Mutable as M
+import Data.Word
+import System.IO (hPutStrLn, stderr)
+import System.IO.Unsafe (unsafePerformIO)
+import qualified System.Random as Random
 #if defined(mingw32_HOST_OS)
-import Foreign.Ptr
 import Foreign.C.Types
+import Foreign.Ptr
 #endif
 import System.Random.MWC.SeedSource
-
+import Control.Monad.ST
 
 -- | The class of types for which we can generate uniformly
 -- distributed random variates.
@@ -273,6 +284,22 @@ instance (Variate a, Variate b, Variate c, Variate d) => Variate (a,b,c,d) where
                     uniformR (z1,z2) g `ap` uniformR (t1,t2) g
     {-# INLINE uniform  #-}
     {-# INLINE uniformR #-}
+
+
+instance (s ~ PrimState m, PrimMonad m) => Random.MonadRandom Gen s m where
+  newtype Frozen Gen = Frozen { unFrozen :: Seed }
+  thawGen (Frozen seed) = restore seed
+  freezeGen = fmap Frozen . save
+  uniformWord32R u = uniformR (0, u)
+  uniformWord64R u = uniformR (0, u)
+  uniformWord8 = uniform
+  uniformWord16 = uniform
+  {-# INLINE uniformWord32 #-}
+  uniformWord32 = uniform
+  {-# INLINE uniformWord64 #-}
+  uniformWord64 = uniform
+  uniformShortByteString n g = unsafeSTToPrim (Random.genShortByteStringST n (uniform g))
+    -- unsafeIOToPrim (Random.genShortByteStringWith n (uniform (unsafeCoerce g :: Gen RealWorld)))
 
 wordsTo64Bit :: (Integral a) => Word32 -> Word32 -> a
 wordsTo64Bit x y =
