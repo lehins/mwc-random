@@ -123,7 +123,7 @@ import qualified Data.Vector.Unboxed.Mutable as M
 import Data.Word
 import System.IO (hPutStrLn, stderr)
 import System.IO.Unsafe (unsafePerformIO)
-import qualified System.Random as Random
+import qualified System.Random.Monad as Random
 #if defined(mingw32_HOST_OS)
 import Foreign.C.Types
 import Foreign.Ptr
